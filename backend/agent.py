@@ -1,11 +1,12 @@
 import os
+import re
 import google.generativeai as genai
 from dotenv import load_dotenv
 from calendar_tools import check_availability, book_appointment
 from session_memory import set_proposed_slot, get_proposed_slot, clear_proposed_slot
 from dateutil.parser import parse as parse_datetime
 from zoneinfo import ZoneInfo
-import re
+from datetime import datetime
 
 load_dotenv()
 
@@ -27,7 +28,7 @@ def run_agent(user_input: str) -> str:
             if slot:
                 start, end = slot
                 clear_proposed_slot()
-                result = book_appointment(start, end)                
+                result = book_appointment(start, end)
                 return model.generate_content(
                     f"The appointment has been booked. Reply to user: '{result}'"
                 ).text
@@ -38,11 +39,11 @@ def run_agent(user_input: str) -> str:
         tool_prompt = f"""
 You are helping a user schedule appointments.
 
-If the user provides a preferred time (e.g., "Book me for 3pm tomorrow"), extract the time as:
-START: 2025-07-02T15:00:00+05:30
-END: 2025-07-02T15:30:00+05:30
+If the user provides a time range like "from 7pm to 10pm", assume they mean today in IST and respond as:
+START: 2025-07-02T19:00:00+05:30
+END: 2025-07-02T22:00:00+05:30
 
-If no specific time is mentioned, respond with TOOL: check_availability or just respond naturally.
+If no specific time is mentioned, respond with TOOL: check_availability or reply naturally.
 
 User: "{user_input}"
 """
@@ -51,22 +52,30 @@ User: "{user_input}"
         # ✅ Step 3: Handle extracted booking
         if route.startswith("START:"):
             try:
-                # Extract times using regex (safe even if extra text is added)
                 start_match = re.search(r"START:\s*(.+)", route)
                 end_match = re.search(r"END:\s*(.+)", route)
 
                 if not (start_match and end_match):
                     raise ValueError("Could not find START/END in Gemini output.")
 
-                start = parse_datetime(start_match.group(1)).astimezone(ist)
-                end = parse_datetime(end_match.group(1)).astimezone(ist)
+                start_raw = start_match.group(1).strip()
+                end_raw = end_match.group(1).strip()
 
-                # Save to memory
+                # Add today's date if not provided
+                if 'T' not in start_raw:
+                    today = datetime.now(ist).date()
+                    start_raw = f"{today}T{start_raw}"
+                if 'T' not in end_raw:
+                    today = datetime.now(ist).date()
+                    end_raw = f"{today}T{end_raw}"
+
+                start = parse_datetime(start_raw).astimezone(ist)
+                end = parse_datetime(end_raw).astimezone(ist)
+
                 set_proposed_slot(start, end)
 
                 return model.generate_content(
-                    f"""The user wants to book an appointment. Confirm with them if this slot is okay:
-{start.strftime('%I:%M %p')} to {end.strftime('%I:%M %p')} IST on {start.strftime('%b %d')}"""
+                    f"The user wants to book an appointment. Confirm with them if this slot is okay:\n{start.strftime('%I:%M %p')} to {end.strftime('%I:%M %p')} IST on {start.strftime('%b %d')}."
                 ).text
 
             except Exception as e:
@@ -81,7 +90,7 @@ Here are the available free slots today: {raw}
 Respond politely with useful info."""
             ).text
 
-        # ✅ Step 5: Default Gemini chat
+        # ✅ Step 5: Default Gemini response
         return route
 
     except Exception as e:
