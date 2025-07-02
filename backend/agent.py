@@ -27,7 +27,8 @@ def run_agent(user_input: str) -> str:
             if slot:
                 start, end = slot
                 clear_proposed_slot()
-                result = book_appointment(start, end)                return model.generate_content(
+                result = book_appointment(start, end)                
+                return model.generate_content(
                     f"The appointment has been booked. Reply to user: '{result}'"
                 ).text
             else:
