@@ -24,7 +24,7 @@ if prompt := st.chat_input("Say something..."):
         st.markdown(prompt)
 
     # Send to FastAPI backend
-    BACKEND_URL = "http://talk2schedule.railway.internal"
+    BACKEND_URL = "talk2schedule.railway.internal"
     try:
         response = requests.post(
             f"{BACKEND_URL}/chat",
