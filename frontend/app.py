@@ -24,7 +24,7 @@ if prompt := st.chat_input("Say something..."):
         st.markdown(prompt)
 
     # ✅ Updated to use the public backend URL
-    BACKEND_URL = "https://talk2schedule-backend.up.railway.app"
+    BACKEND_URL = "http://localhost:8501"
     try:
         response = requests.post(
             f"{BACKEND_URL}/chat",
